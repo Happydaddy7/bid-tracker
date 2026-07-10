@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>세인바이오 입찰공고 트래커</title>
+<meta property="og:title" content="세인바이오 입찰공고 트래커">
+<meta property="og:description" content="사료 원료 입찰공고 자동 수집 · 품목/마감일/수량 자동 정리">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/[email protected]/dist/web/static/pretendard.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0F2E4C; --navy-light: #1E4A6E;
+    --copper: #B87333; --copper-light: #D89556;
+    --ivory: #F5EFE6; --paper: #FBF8F2;
+    --ink: #1A1A1A; --muted: #6B6B6B; --line: #E5DCC9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Pretendard', sans-serif; background: var(--paper); color: var(--ink); }
+
+  .header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+    color: var(--ivory); padding: 24px 28px; border-bottom: 3px solid var(--copper);
+  }
+  .header-inner { max-width: 1180px; margin: 0 auto; }
+  .header .eyebrow { font-size: 11px; color: var(--copper-light); letter-spacing: .08em; margin-bottom: 4px; }
+  .header h1 { font-size: 22px; font-weight: 700; font-family: 'Noto Serif KR', serif; }
+  .header .subtitle { font-size: 12px; color: #cfd9e3; margin-top: 6px; }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .summary-card {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .summary-card .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .summary-card .value { font-size: 22px; font-weight: 700; color: var(--navy); font-family: 'JetBrains Mono', monospace; }
+  .summary-card.warn .value { color: #C4595A; }
+
+  .bids-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .bids-updated { font-size: 12px; color: var(--muted); }
+  .bids-filters { display: flex; gap: 6px; }
+  .bids-filter-btn {
+    padding: 5px 12px; border: 1px solid var(--line); background: var(--paper);
+    color: var(--muted); border-radius: 20px; font-size: 12px; cursor: pointer;
+  }
+  .bids-filter-btn.active { background: var(--navy); color: var(--ivory); border-color: var(--navy); }
+  #bids-search {
+    margin-left: auto; padding: 6px 12px; border: 1px solid var(--line);
+    border-radius: 6px; font-size: 13px; min-width: 220px;
+  }
+  .bids-source-note {
+    font-size: 12px; color: var(--muted); background: var(--ivory);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .bids-grid { display: block; overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; }
+  .bids-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .bids-table th {
+    text-align: left; font-size: 11px; color: var(--muted); font-weight: 700;
+    padding: 10px; border-bottom: 2px solid var(--navy); white-space: nowrap;
+    cursor: pointer; user-select: none; background: var(--ivory);
+  }
+  .bids-table th:hover { color: var(--navy); }
+  .bids-table th.sorted::after { content: ' ▾'; color: var(--copper); }
+  .bids-table td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .bids-table tr.relevant td:first-child { border-left: 3px solid var(--copper); }
+  .bids-table tr:hover td { background: var(--ivory); }
+  .bids-table tr.deadline-soon td { background: #FFF4E8; }
+  .bid-source { font-weight: 700; color: var(--navy); font-size: 12px; white-space: nowrap; }
+  .bid-title-cell a { color: var(--ink); text-decoration: none; font-weight: 600; }
+  .bid-title-cell a:hover { color: var(--copper); text-decoration: underline; }
+  .bid-items { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .bid-item-chip {
+    display: inline-block; font-size: 10px; background: var(--ivory); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1px 8px; color: var(--navy);
+  }
+  .bid-deadline { white-space: nowrap; font-weight: 600; }
+  .bid-deadline.soon { color: #C4595A; }
+  .bid-deadline.unknown { color: var(--muted); font-weight: 400; font-style: italic; }
+  .bid-quantity { white-space: nowrap; color: var(--muted); font-size: 12px; }
+  .bids-empty { text-align: center; color: var(--muted); padding: 60px 0; font-size: 13px; }
+
+  .footer { text-align: center; font-size: 11px; color: var(--muted); padding: 24px 0; font-family: 'JetBrains Mono', monospace; }
+
+  @media (max-width: 800px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .bids-toolbar { flex-direction: column; align-items: stretch; }
+    #bids-search { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="eyebrow">SAEIN BIO</div>
+    <h1>입찰공고 트래커</h1>
+    <div class="subtitle">사료 원료 구매입찰 자동 수집 · 품목 / 마감일 / 수량 자동 정리</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="label">전체 공고</div>
+      <div class="value" id="stat-total">-</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">관심품목</div>
+      <div class="value" id="stat-relevant">-</div>
+    </div>
+    <div class="summary-card warn">
+      <div class="label">마감 임박(3일 이내)</div>
+      <div class="value" id="stat-soon">-</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">발주처 수</div>
+      <div class="value" id="stat-sources">-</div>
+    </div>
+  </div>
+
+  <div class="bids-toolbar">
+    <span class="bids-updated" id="bids-updated">·</span>
+    <div class="bids-filters">
+      <button class="bids-filter-btn active" data-filter="all" onclick="setBidFilter('all')">전체</button>
+      <button class="bids-filter-btn" data-filter="relevant" onclick="setBidFilter('relevant')">관심품목만</button>
+      <button class="bids-filter-btn" data-filter="soon" onclick="setBidFilter('soon')">마감 임박</button>
+    </div>
+    <input type="text" id="bids-search" placeholder="발주처 · 품목 검색" oninput="renderBids()">
+  </div>
+
+  <div class="bids-source-note">
+    자동 수집 소스: 농협사료(본사) · 안양축협 · 도드람양돈농협 · TS사료 게시판 + 검색 기반 자동 탐색(신규 회사 발견) &nbsp;·&nbsp;
+    Claude가 원문을 읽어 <b>품목 / 마감일 / 수량</b>을 자동 추출합니다. 매일 1회 갱신, 마감 임박(3일 이내) 건은 표에서 주황색으로 표시됩니다.
+    표 헤더를 클릭하면 정렬 기준을 바꿀 수 있습니다.
+    <br>※ 검색엔진에 노출되지 않는 비공개 게시판, 팜스코·CJ피드앤케어·카길·이지바이오처럼 애초에 인터넷에 공개된 정보가 없는 회사는 커버되지 않습니다.
+  </div>
+
+  <div class="bids-grid">
+    <table class="bids-table" id="bids-table">
+      <thead>
+        <tr>
+          <th data-sort="source" onclick="sortBidsBy('source')">발주처</th>
+          <th data-sort="items" onclick="sortBidsBy('items')">품목</th>
+          <th data-sort="deadline" class="sorted" onclick="sortBidsBy('deadline')">마감일</th>
+          <th data-sort="quantity" onclick="sortBidsBy('quantity')">수량</th>
+          <th>원문</th>
+        </tr>
+      </thead>
+      <tbody id="bids-tbody"></tbody>
+    </table>
+  </div>
+  <div class="bids-empty" id="bids-empty" style="display:none;">공고가 없습니다.</div>
+
+  <div class="footer">SAEIN BIO · 입찰공고 트래커 · v1</div>
+</div>
+
+<script>
+  let BID_ITEMS = [];
+  let bidFilter = 'all';
+  let bidSort = { field: 'deadline', dir: 'asc' };
+
+  async function loadBids() {
+    try {
+      const res = await fetch('./data/bids.json?_=' + Date.now());
+      const data = await res.json();
+      BID_ITEMS = data.items || [];
+      const updated = data.updated_at
+        ? `마지막 갱신: ${data.updated_at.replace('T', ' ')}`
+        : '아직 갱신되지 않음 (GitHub Actions 첫 실행 대기중)';
+      document.getElementById('bids-updated').textContent = updated;
+      updateStats();
+    } catch (e) {
+      document.getElementById('bids-updated').textContent = '데이터를 불러오지 못했습니다.';
+      console.error('loadBids failed', e);
+    }
+    renderBids();
+  }
+
+  function updateStats() {
+    const total = BID_ITEMS.length;
+    const relevant = BID_ITEMS.filter(i => i.relevant).length;
+    const soon = BID_ITEMS.filter(i => {
+      const d = i.structured && i.structured.deadline_date;
+      const r = daysUntil(d);
+      return r !== null && r >= 0 && r <= 3;
+    }).length;
+    const sources = new Set(BID_ITEMS.map(i => i.source)).size;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-relevant').textContent = relevant;
+    document.getElementById('stat-soon').textContent = soon;
+    document.getElementById('stat-sources').textContent = sources;
+  }
+
+  function setBidFilter(name) {
+    bidFilter = name;
+    document.querySelectorAll('.bids-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === name);
+    });
+    renderBids();
+  }
+
+  function sortBidsBy(field) {
+    if (bidSort.field === field) {
+      bidSort.dir = bidSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      bidSort = { field, dir: 'asc' };
+    }
+    document.querySelectorAll('.bids-table th').forEach(th => {
+      th.classList.toggle('sorted', th.dataset.sort === field);
+    });
+    renderBids();
+  }
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.round((d - today) / 86400000);
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function renderBids() {
+    const q = (document.getElementById('bids-search')?.value || '').trim().toLowerCase();
+    let items = BID_ITEMS.map(i => {
+      const s = i.structured || {};
+      return {
+        ...i,
+        _items: (s.items && s.items.length) ? s.items : null,
+        _quantity: s.quantity || '',
+        _deadlineRaw: s.deadline_raw || '',
+        _deadlineDate: s.deadline_date || null,
+      };
+    });
+
+    if (bidFilter === 'relevant') items = items.filter(i => i.relevant);
+    if (bidFilter === 'soon') {
+      items = items.filter(i => {
+        const r = daysUntil(i._deadlineDate);
+        return r !== null && r >= 0 && r <= 3;
+      });
+    }
+    if (q) {
+      items = items.filter(i =>
+        (i.title || '').toLowerCase().includes(q) ||
+        (i.source || '').toLowerCase().includes(q) ||
+        (i._items || []).join(' ').toLowerCase().includes(q)
+      );
+    }
+
+    const dir = bidSort.dir === 'asc' ? 1 : -1;
+    items.sort((a, b) => {
+      let av, bv;
+      if (bidSort.field === 'deadline') {
+        av = a._deadlineDate || '9999-99-99';
+        bv = b._deadlineDate || '9999-99-99';
+      } else if (bidSort.field === 'items') {
+        av = (a._items || [a.title]).join(',');
+        bv = (b._items || [b.title]).join(',');
+      } else if (bidSort.field === 'quantity') {
+        av = a._quantity || '';
+        bv = b._quantity || '';
+      } else {
+        av = a.source || '';
+        bv = b.source || '';
+      }
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+
+    const tbody = document.getElementById('bids-tbody');
+    const empty = document.getElementById('bids-empty');
+    if (!items.length) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = items.map(i => {
+      const remain = daysUntil(i._deadlineDate);
+      const soon = remain !== null && remain >= 0 && remain <= 3;
+      const deadlineHtml = i._deadlineDate
+        ? `<span class="bid-deadline${soon ? ' soon' : ''}">${i._deadlineDate}${remain !== null ? ` (D${remain <= 0 ? '-DAY' : '-' + remain})` : ''}</span>`
+        : (i._deadlineRaw
+            ? `<span class="bid-deadline">${escapeHtml(i._deadlineRaw)}</span>`
+            : `<span class="bid-deadline unknown">확인중</span>`);
+      const itemsHtml = i._items
+        ? `<div class="bid-items">${i._items.map(it => `<span class="bid-item-chip">${escapeHtml(it)}</span>`).join('')}</div>`
+        : `<span class="bid-deadline unknown">추출 대기중</span>`;
+      return `
+        <tr class="${i.relevant ? 'relevant' : ''}${soon ? ' deadline-soon' : ''}">
+          <td><span class="bid-source">${escapeHtml(i.source || '')}</span></td>
+          <td class="bid-title-cell">
+            <a href="${i.url}" target="_blank" rel="noopener">${escapeHtml(i.title || '')}</a>
+            ${itemsHtml}
+          </td>
+          <td>${deadlineHtml}</td>
+          <td class="bid-quantity">${escapeHtml(i._quantity || '·')}</td>
+          <td><a href="${i.url}" target="_blank" rel="noopener">열기 ↗</a></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  loadBids();
+</script>
+</body>
+</html>

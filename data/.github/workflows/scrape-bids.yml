@@ -1,0 +1,42 @@
+name: 입찰공고 자동 수집
+
+on:
+  schedule:
+    # 매일 한국시간 오전 9시 (UTC 00:00)
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}   # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 의존성 설치
+        run: pip install requests beautifulsoup4
+
+      - name: 스크래퍼 실행 (공고 목록 수집)
+        env:
+          GOOGLE_CSE_API_KEY: ${{ secrets.GOOGLE_CSE_API_KEY }}
+          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+        run: python scripts/scrape_bids.py
+
+      - name: 구조화 추출 (품목/마감일/수량, Claude API)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/extract_bid_details.py
+
+      - name: 변경사항 커밋
+        run: |
+          git config user.name "bid-scraper-bot"
+          git config user.email "actions@github.com"
+          git add data/bids.json
+          git diff --cached --quiet || git commit -m "chore: 입찰공고 자동 업데이트 $(date +'%Y-%m-%d')"
+          git push

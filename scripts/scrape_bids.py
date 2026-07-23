@@ -50,6 +50,9 @@ PRODUCT_KEYWORDS = [
     # 비타민 / 첨가제
     "비타민", "비타민E", "비타민C", "비타민A", "비타민D", "콜린", "염화콜린",
     "나노비타", "프리믹스", "첨가제", "유기산", "효소제", "생균제", "항산화제",
+    # 기능성 첨가제 (도드람·농협사료 공고에서 실제 확인된 품목명)
+    "바인더", "톡신", "곰팡이독소", "흡착제", "클레이", "제올라이트",
+    "감미료", "향미제", "완충제", "유화제", "프로바이오틱", "효모",
     # 미네랄 / 인산염
     "미네랄", "인산칼슘", "MDCP", "TCP", "DCP", "MCP", "석회석", "탄산칼슘",
     "산화아연", "황산동", "미량광물질",
@@ -152,13 +155,17 @@ def scrape_nonghyup_feed(pages: int = 2):
                 continue
             detail_url = "https://www.nonghyupsaryo.co.kr/noti/" + href.lstrip("./")
             detail_text = _fetch_detail_text(detail_url)
+            # ⚠️ 관련성 판단은 '제목'으로만 한다.
+            #    상세페이지 본문 전체를 넣으면 사이트 공통 메뉴/푸터에 들어있는
+            #    "채용", "공사", "용역" 같은 단어까지 제외 키워드에 걸려
+            #    정상 입찰공고가 전부 탈락해버린다.
             results.append({
                 "id": make_id("nonghyup_feed", seq),
                 "source": "농협사료(본사)",
                 "title": title,
                 "date": date_text,
                 "url": detail_url,
-                "relevant": is_relevant_on_bid_board(f"{title} {detail_text}"),
+                "relevant": is_relevant_on_bid_board(title),
                 "bid_board": True,   # 입찰 전용 게시판 → 완화 기준 적용
                 "raw_text": detail_text or title,
             })
@@ -181,14 +188,40 @@ def _fetch_detail_text(url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 2) 농협 지역조합 공통 CMS (indexSub.do 플랫폼)
-#    안양축협을 시작으로, 같은 플랫폼을 쓰는 다른 지역조합은
-#    SOURCES 리스트에 site_id/board_id만 추가하면 됨.
+# 2) 농협 지역조합 (nonghyup.com 지역조합 CMS)
+#
+# ⚠️ 현재 등록된 조합 없음 (2026-07 확인)
+#    안양축협(aylc.nonghyup.com) 전체 메뉴를 확인한 결과, 입찰공고 게시판이
+#    존재하지 않았다. (메뉴 구성: 농협소개/상호금융/지도사업/사료사업/
+#    유통사업/고객지원 — 고객지원 하위도 공지사항·축산소식·농업뉴스·
+#    직원전용·고객의소리뿐)
+#    → 안양축협 입찰은 홈페이지가 아닌 이메일/팩스로만 오는 것으로 보인다.
+#
+#    다른 지역조합을 추가하려면, 먼저 해당 조합 홈페이지에 실제로
+#    '입찰공고' 게시판이 있는지 눈으로 확인한 뒤 아래 형식으로 등록할 것.
+#    게시판 URL은 다음 형태다 (순천농협 사례로 확인):
+#      https://{site_id}.nonghyup.com/user/boardList.do?siteId={site_id}&boardId={board_id}
+#    board_id는 게시판을 열었을 때 주소창에서 확인할 수 있다.
 # ---------------------------------------------------------------------------
+# 전국 축협/농협은 모두 nonghyup.com 공통 플랫폼을 쓰고, 게시판 주소는 아래 형태다:
+#   https://{site_id}.nonghyup.com/user/boardList.do?siteId={site_id}&boardId={board_id}
+#
+# 【추가하는 방법】
+#   1) 해당 조합 홈페이지 접속 (예: 인천축협 → icch.nonghyup.com)
+#   2) 공지사항/입찰공고 게시판을 연다
+#   3) 주소창에서 siteId=OOO, boardId=NNNNN 두 값을 복사
+#   4) 아래 리스트에 한 줄 추가
+#
+# 확인된 site_id 예시: aylc(안양축협), icch(인천축협), lico(수원축협),
+#   nhkd(공덕농협), dodram(도드람) — 단, 조합마다 입찰 게시판 유무가 다르다.
+#   ※ 축협 공지사항 게시판에는 공사·용역 공고가 많으므로 엄격 필터가 적용된다.
 NONGHYUP_LOCAL_SOURCES = [
-    {"name": "안양축협", "site_id": "aylc", "board_id": "116179"},
-    # 예시로 추가하려면 아래처럼 한 줄만 추가:
-    # {"name": "대구축협", "site_id": "dgcattle", "board_id": "XXXXXX"},
+    # 인천축협 공지사항 (입찰공고가 이 게시판에 올라옴 - 2026.07 확인)
+    {"name": "인천축협", "site_id": "icch", "board_id": "67597"},
+    # 공덕농협 공지사항
+    {"name": "공덕농협", "site_id": "nhkd", "board_id": "125449"},
+    # 필요 시 아래 형식으로 계속 추가:
+    # {"name": "○○축협", "site_id": "xxxx", "board_id": "123456"},
 ]
 
 
@@ -198,8 +231,7 @@ def scrape_nonghyup_local(pages: int = 1):
         base = f"https://{src['site_id']}.nonghyup.com/user/boardList.do"
         for page in range(1, pages + 1):
             params = {
-                "siteId": src["site_id"], "boardId": src["board_id"],
-                "command": "list", "page": page,
+                "siteId": src["site_id"], "boardId": src["board_id"], "page": page,
             }
             try:
                 resp = requests.get(base, params=params, headers=HEADERS, timeout=15)
@@ -220,9 +252,13 @@ def scrape_nonghyup_local(pages: int = 1):
                 href = link.get("href", "")
                 m = re.search(r"boardSeq=(\d+)", href)
                 board_seq = m.group(1) if m else href
-                full_url = href if href.startswith("http") else (
-                    f"https://{src['site_id']}.nonghyup.com{href}"
-                )
+                host = f"https://{src['site_id']}.nonghyup.com"
+                if href.startswith("http"):
+                    full_url = href
+                elif href.startswith("/"):
+                    full_url = host + href
+                else:
+                    full_url = f"{host}/user/" + href.lstrip("./")
                 results.append({
                     "id": make_id(f"nonghyup_local_{src['site_id']}", board_seq),
                     "source": src["name"],
@@ -237,47 +273,71 @@ def scrape_nonghyup_local(pages: int = 1):
 
 
 # ---------------------------------------------------------------------------
-# 3) 도드람양돈농협 (pkpork.co.kr 모바일 게시판, tender 게시판)
+# 3) 도드람양돈농협 — 자동 수집 제외 (2026-07 확인)
+#
+# ⚠️ 도드람은 입찰공고 게시판을 운영하고 있으나(home.dodram.com),
+#    해당 사이트가 robots.txt로 자동 접근을 명시적으로 차단하고 있다.
+#    GitHub Actions에서 계속 발생하던 'RemoteDisconnected' 오류도
+#    네트워크 문제가 아니라 이 차단 때문이었다.
+#    사이트 정책을 존중해 자동 수집 대상에서 제외한다.
+#    → 도드람 공고는 담당자가 직접 확인하거나, 이메일 수신분을 활용할 것.
+#      게시판 주소: http://home.dodram.com/?page_id=820
 # ---------------------------------------------------------------------------
-def scrape_dodram(pages: int = 1):
-    base = "https://m.pkpork.co.kr/board/Board.do"
+DODRAM_BOARD_ID = "5358073"
+
+# 도드람 그룹 게시판에는 계열사 11곳 공고가 섞여 올라오므로 제목에서 발주처를 구분한다.
+DODRAM_COMPANIES = [
+    "디에스피드", "도드람푸드시스템", "도드람푸드", "푸르샨식품", "도드람엘피씨",
+    "부광산업", "도드람양돈서비스", "도드람에프씨", "대명오앤씨", "도드람김제에프엠씨",
+]
+
+
+def guess_dodram_company(title: str) -> str:
+    for c in DODRAM_COMPANIES:
+        if c in title:
+            return f"도드람-{c}"
+    return "도드람양돈농협"
+
+
+def scrape_dodram(pages: int = 2):
+    base = "https://dodram.nonghyup.com/user/boardList.do"
     results = []
     for page in range(1, pages + 1):
-        params = {
-            "action": "list", "page": page, "board_id": "9170",
-            "mgr_id": "tender", "group_id": "1",
-        }
-        soup = None
-        # 도드람 서버가 첫 연결을 끊어버리는 경우가 잦아 재시도한다.
-        for attempt in range(3):
-            try:
-                resp = requests.get(base, params=params, headers=HEADERS, timeout=20)
-                resp.encoding = resp.apparent_encoding
-                soup = BeautifulSoup(resp.text, "html.parser")
-                break
-            except Exception as e:
-                if attempt == 2:
-                    print(f"[dodram] page {page} 요청 실패(3회 시도): {e}", file=sys.stderr)
-                else:
-                    time.sleep(2)
-        if soup is None:
+        params = {"boardId": DODRAM_BOARD_ID, "siteId": "dodram", "page": page}
+        try:
+            resp = requests.get(base, params=params, headers=HEADERS, timeout=20)
+            resp.encoding = resp.apparent_encoding or "utf-8"
+            soup = BeautifulSoup(resp.text, "html.parser")
+        except Exception as e:
+            print(f"[dodram] page {page} 요청 실패: {e}", file=sys.stderr)
             continue
 
-        links = soup.find_all("a", href=re.compile(r"rwnum="))
+        # 상세보기 링크 형태: ...boardList.do?command=view&...&boardSeq=NNNNNNN
+        links = soup.find_all("a", href=re.compile(r"boardSeq=\d+"))
         for link in links:
             title = link.get_text(strip=True)
-            if not title:
+            m = re.search(r"boardSeq=(\d+)", link.get("href", ""))
+            if not title or not m:
                 continue
+            board_seq = m.group(1)
             href = link.get("href", "")
-            m = re.search(r"rwnum=(\d+)", href)
-            rwnum = m.group(1) if m else href
-            full_url = href if href.startswith("http") else "https://m.pkpork.co.kr" + href
+            full_url = href if href.startswith("http") else (
+                "https://dodram.nonghyup.com/user/" + href.lstrip("./")
+            )
+            date_text = ""
+            row = link.find_parent("tr")
+            if row:
+                dm = re.search(r"(20\d{2}-\d{2}-\d{2})", row.get_text(" ", strip=True))
+                if dm:
+                    date_text = dm.group(1)
+
             results.append({
-                "id": make_id("dodram", rwnum),
-                "source": "도드람양돈농협",
+                "id": make_id("dodram", board_seq),
+                "source": guess_dodram_company(title),
                 "title": title,
-                "date": "",
+                "date": date_text,
                 "url": full_url,
+                # 건축·설비공사 공고도 섞여 있으므로 엄격 기준(품목 키워드 필요) 적용
                 "relevant": is_relevant(title),
                 "raw_text": title,
             })
@@ -323,6 +383,52 @@ def scrape_ts_feed():
             })
     except Exception as e:
         print(f"[ts_feed] 요청 실패: {e}", file=sys.stderr)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# 4-b) 한국사료협회 (kofeed.org) '인사채용/입찰공고' 게시판
+#      개별 회사가 아니라 업계 전체 창구라, 회원사들의 공고가 올라온다.
+#      ⚠️ 이 사이트는 목록 제목을 자바스크립트로 채우는 구조라 정적 파싱이
+#         실패할 수 있다. 실패 시 조용히 0건 반환하고 로그만 남긴다.
+#         (첫 실행 로그를 보고 필요하면 방식 변경)
+# ---------------------------------------------------------------------------
+def scrape_kofeed():
+    url = "http://www.kofeed.org/bbs/selectBoardList.do"
+    params = {"bbsId": "BBSMSTR_000000000101", "menuNo": "5050000"}
+    results = []
+    try:
+        resp = requests.get(url, params=params, headers=HEADERS, timeout=20)
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        soup = BeautifulSoup(resp.text, "html.parser")
+    except Exception as e:
+        print(f"[kofeed] 요청 실패: {e}", file=sys.stderr)
+        return results
+
+    links = soup.find_all("a", href=re.compile(r"nttId=\d+|selectBoardArticle"))
+    for link in links:
+        title = link.get_text(strip=True)
+        if not title or len(title) < 5:
+            continue
+        href = link.get("href", "")
+        m = re.search(r"nttId=(\d+)", href)
+        ntt_id = m.group(1) if m else href[:40]
+        full_url = href if href.startswith("http") else (
+            "http://www.kofeed.org" + (href if href.startswith("/") else "/bbs/" + href)
+        )
+        results.append({
+            "id": make_id("kofeed", ntt_id),
+            "source": "한국사료협회",
+            "title": title,
+            "date": "",
+            "url": full_url,
+            "relevant": is_relevant(title),
+            "raw_text": title,
+        })
+
+    if not results:
+        print("[kofeed] 목록을 파싱하지 못함(JS 렌더링 가능성) - 게시판 직접 확인 필요",
+              file=sys.stderr)
     return results
 
 
@@ -509,7 +615,9 @@ def main():
     existing_by_id = {item["id"]: item for item in existing_items}
 
     collected = []
-    for fn in (scrape_nonghyup_feed, scrape_nonghyup_local, scrape_dodram, scrape_ts_feed, scrape_search_discovery, scrape_slack_channel):
+    for fn in (scrape_nonghyup_feed, scrape_nonghyup_local, scrape_dodram,
+               scrape_ts_feed, scrape_kofeed, scrape_search_discovery,
+               scrape_slack_channel):
         try:
             items = fn()
             print(f"{fn.__name__}: {len(items)}건 수집")
@@ -519,17 +627,25 @@ def main():
 
     # 사료와 무관한 공고는 아예 목록에서 제외한다.
     before = len(collected)
+    dropped = [i for i in collected if not i.get("relevant")]
     collected = [i for i in collected if i.get("relevant")]
-    print(f"관련성 필터: {before}건 중 {len(collected)}건 유지 ({before - len(collected)}건 제외)")
+    print(f"관련성 필터: {before}건 중 {len(collected)}건 유지 ({len(dropped)}건 제외)")
+    # 무엇이 왜 빠졌는지 로그로 남긴다 (필터가 과한지 확인용)
+    for d in dropped[:15]:
+        print(f"  [제외] {d.get('source', '')} | {d.get('title', '')[:60]}")
+    if len(dropped) > 15:
+        print(f"  ... 외 {len(dropped) - 15}건")
 
     # 필터 규칙이 바뀌었을 수 있으므로, 기존에 저장돼 있던 항목도 현재 기준으로 재평가한다.
     # 단, 입찰 전용 게시판(bid_board=True)에서 온 항목은 완화 기준을 적용한다.
+    # ⚠️ 판단은 '제목'으로만 한다. raw_text(본문 전체)를 넣으면 사이트 공통
+    #    메뉴/푸터의 "채용", "공사" 같은 단어에 걸려 정상 공고가 탈락한다.
     purged = 0
     for key in list(existing_by_id.keys()):
         item = existing_by_id[key]
-        text = f"{item.get('title', '')} {item.get('raw_text', '')}"
+        title = item.get("title", "")
         check = is_relevant_on_bid_board if item.get("bid_board") else is_relevant
-        if not check(text):
+        if not check(title):
             del existing_by_id[key]
             purged += 1
     if purged:

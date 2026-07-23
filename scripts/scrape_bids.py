@@ -628,6 +628,7 @@ def scrape_slack_channel(limit: int = 100):
             "date": date_str,
             "url": permalink,
             "relevant": is_relevant(text) or is_relevant(title_line),
+            "origin": "slack",   # 대시보드에서 웹 스크래핑분과 구분 표시하기 위한 태그
             "raw_text": text[:4000],
         })
     return results

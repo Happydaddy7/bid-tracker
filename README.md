@@ -10,9 +10,10 @@
 - 도드람양돈농협
 - TS사료
 - 검색 기반 자동 탐색 (Google Custom Search, 신규 회사 발견용 — 선택)
+- **Slack #0-06입찰공고 채널** — 직원들이 이메일/팩스로 받은 공고까지 올리는 채널이라
+  팜스코·CJ피드앤케어·카길처럼 게시판이 없는 회사까지 사실상 커버됨
 
-팜스코·CJ피드앤케어·카길·이지바이오처럼 홈페이지에 입찰 게시판 자체가 없는 회사는
-애초에 인터넷에 공개된 정보가 없어 수집 대상이 아닙니다.
+위 모두 같은 표에 자동으로 합쳐집니다.
 
 ## 최초 설정 (딱 한 번만)
 
@@ -29,11 +30,19 @@
 | 이름 | 용도 | 필수 여부 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | 품목/마감일/수량 자동 추출 (Claude API) | **필수** |
+| `SLACK_BOT_TOKEN` | Slack #0-06입찰공고 채널 자동 수집 | 선택 (강력 추천) |
 | `GOOGLE_CSE_API_KEY` | 검색 기반 신규 회사 자동 탐색 | 선택 |
 | `GOOGLE_CSE_CX` | 검색 기반 신규 회사 자동 탐색 | 선택 |
 
 `ANTHROPIC_API_KEY`는 [console.anthropic.com](https://console.anthropic.com)에서 발급합니다.
-검색 탐색 키가 없으면 그 기능만 조용히 건너뛰고 나머지 4개 소스는 정상 동작합니다.
+
+`SLACK_BOT_TOKEN` 발급 방법:
+1. [api.slack.com/apps](https://api.slack.com/apps) → 새 앱 생성
+2. OAuth & Permissions → Bot Token Scopes에 `channels:history`, `channels:read` 추가
+3. 워크스페이스에 설치 후 발급된 `xoxb-...` 토큰 복사
+4. Slack에서 `#0-06입찰공고` 채널에 `/invite @앱이름`으로 봇 초대
+
+선택 항목 키가 없으면 그 기능만 조용히 건너뛰고 나머지 소스는 정상 동작합니다.
 
 ### 4. 첫 실행
 저장소 **Actions** 탭 → "입찰공고 자동 수집" 워크플로 선택 → **Run workflow** 버튼으로 수동 실행.

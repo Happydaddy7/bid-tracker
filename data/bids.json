@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-13T04:50:24",
+  "updated_at": "2026-10-14T02:57:50",
   "items": [
     {
       "id": "d5892ec55159",
@@ -114,9 +114,9 @@
       "first_seen": "2026-10-01T03:25:17",
       "structured": {
         "items": [
-          "사료용 원료(아미노산류)"
+          "아미노산류"
         ],
-        "quantity": "",
+        "quantity": "26.11~27.04",
         "deadline_raw": "",
         "deadline_date": null,
         "buyer_hint": "",
@@ -135,9 +135,9 @@
       "first_seen": "2026-10-01T03:25:17",
       "structured": {
         "items": [
-          "사료용 원료(비타민류)"
+          "비타민류"
         ],
-        "quantity": "26.11~27.04",
+        "quantity": "",
         "deadline_raw": "",
         "deadline_date": null,
         "buyer_hint": "",
@@ -810,8 +810,8 @@
           "미네랄합제"
         ],
         "quantity": "",
-        "deadline_raw": "2026.10",
-        "deadline_date": "2026-10-31",
+        "deadline_raw": "",
+        "deadline_date": null,
         "buyer_hint": "",
         "confidence": "medium"
       }
@@ -834,7 +834,7 @@
         "deadline_raw": "",
         "deadline_date": null,
         "buyer_hint": "",
-        "confidence": "low"
+        "confidence": "medium"
       }
     },
     {
@@ -873,8 +873,8 @@
           "라이신황산염"
         ],
         "quantity": "",
-        "deadline_raw": "",
-        "deadline_date": null,
+        "deadline_raw": "26.10",
+        "deadline_date": "2026-10-31",
         "buyer_hint": "",
         "confidence": "medium"
       }
